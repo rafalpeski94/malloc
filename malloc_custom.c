@@ -3,33 +3,48 @@
 #include <stdint.h>
 #include <stdbool.h> 
 #include <string.h>
+#include <assert.h>
 
 #ifndef MALLOC_BUFF_SIZE
-#define MALLOC_BUFF_SIZE 0xFFFF //max 0x7FFFFFFF
+#define MALLOC_BUFF_SIZE 0xFFFF //max 0x1FFFFFF
+#else
+#if MALLOC_BUFF_SIZE > 0x1FFFFFF
+#warning "MALLOC_BUFF_SIZE max 0x1FFFFFF"
+#undef MALLOC_BUFF_SIZE
+#define MALLOC_BUFF_SIZE 0x1FFFFFF
+#endif
 #endif
 
 uint8_t buff[MALLOC_BUFF_SIZE];
+
+#define IS_FREE_KEY 0x7A
 
 typedef struct SBlock SBlock, *PSBlock;
 
 __attribute__((packed)) struct SBlock 
 {
-  unsigned int size : 31;
-  unsigned int is_free : 1;
+  unsigned int size : 25;
+  unsigned int is_free : 7;
   PSBlock next;
   PSBlock prev;
-}; 
+};  
 
 #define BLOCK_SIZE sizeof(SBlock)
+
+
+
 PSBlock start = NULL;
 size_t freeMem = MALLOC_BUFF_SIZE;
+
+#define align4(x) (((((x)-1) >> 2) << 2) + 4)
+
 void *c_malloc(size_t argSize) {
-    size_t size = argSize;
+    size_t size = align4(argSize);
     void *ret = NULL;
     if (NULL == start) { //init
         start = (PSBlock)buff;
         start->size = MALLOC_BUFF_SIZE - BLOCK_SIZE;
-        start->is_free = 1;
+        start->is_free = IS_FREE_KEY;
         start->next = NULL;
         start->prev = NULL; 
         freeMem = MALLOC_BUFF_SIZE - BLOCK_SIZE;
@@ -38,13 +53,13 @@ void *c_malloc(size_t argSize) {
     // wyszukanie bloku
     PSBlock curr = start;
     while (curr) {
-        if (curr->is_free && curr->size >= size) {
+        if (IS_FREE_KEY == curr->is_free && curr->size >= size) {
             break;
         }
         curr = curr->next;
     }
 
-    if (curr) {
+    if (curr && size) {
         //jezeli po allokacji pozostala pamiec < BLOCK_SIZE wyrownaj do tej wartosci
         if(curr->size < size + BLOCK_SIZE){
             size = curr->size;
@@ -56,7 +71,7 @@ void *c_malloc(size_t argSize) {
             // wydzielenie bloku
             PSBlock new_block = (PSBlock)((char *)(curr + 1) + size);
             new_block->size = curr->size - size - BLOCK_SIZE;
-            new_block->is_free = 1;
+            new_block->is_free = IS_FREE_KEY;
             new_block->next = curr->next;
             new_block->prev = curr;
             if (curr->next) {
@@ -68,44 +83,46 @@ void *c_malloc(size_t argSize) {
             freeMem -= size + BLOCK_SIZE;
         }
         ret = (void *)(curr + 1);
+#ifdef MEMFREE_SET_ZERO
+        memset((void *)(curr + 1), 0x00, curr->size);
+#endif
     }
     return ret;
 }
 
 void c_free(void *argPtr){
-    PSBlock curr = (PSBlock)((uint8_t *)argPtr - BLOCK_SIZE);
-    if(curr->is_free){ //zabezpieczenie przed podowjnym czyszczeniem
-      return;
+    if(NULL == argPtr){
+        return;
     }
-    curr->is_free = 1;
+    PSBlock curr = (PSBlock)((uint8_t *)argPtr - BLOCK_SIZE);
+    if(IS_FREE_KEY == curr->is_free){ //zabezpieczenie przed podowjnym czyszczeniem
+      return;
+    }else if(argPtr < (void *)buff || argPtr > (void *)(buff + MALLOC_BUFF_SIZE)){
+      //nie obslugiwany adres
+      return;
+    }else if(0 != curr->is_free){
+      assert(false); //prawdopobnie pisanie poza buforem
+    }
+    curr->is_free = IS_FREE_KEY;
     freeMem += curr->size;
-#ifdef MEMFREE_SET_ZERO
-    memset((void *)(curr + 1), 0x00, curr->size);
-#endif
     // laczenie z nastepnym
-    if (curr->next && curr->next->is_free) {
+    if (curr->next && IS_FREE_KEY == curr->next->is_free) {
         curr->size += BLOCK_SIZE + curr->next->size;
         curr->next = curr->next->next;
         if (curr->next) {
             curr->next->prev = curr;
         }
         freeMem += BLOCK_SIZE;
-#ifdef MEMFREE_SET_ZERO
-        memset((void *)(curr + 1), 0x00, curr->size);
-#endif
     }
 
     // laczenie z poprzednim
-    if (curr->prev && curr->prev->is_free) {
+    if (curr->prev && IS_FREE_KEY == curr->prev->is_free) {
         curr->prev->size += BLOCK_SIZE + curr->size;
         curr->prev->next = curr->next;
         if (curr->next) {
             curr->next->prev = curr->prev;
         }
         freeMem += BLOCK_SIZE;
-#ifdef MEMFREE_SET_ZERO
-        memset((void *)(curr->prev + 1), 0x00, curr->prev->size);
-#endif
     }
 }
 

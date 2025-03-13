@@ -40,4 +40,6 @@ int main(int i, char** x){
   c_free(a);
   c_free(b);
   c_free(e);
+  a = c_malloc(0);
+  c_free(a);
 }
