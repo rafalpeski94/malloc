@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <stdbool.h> // Include the stdbool.h library
+#include <stdbool.h> 
+#include <string.h>
 
 #ifndef MALLOC_BUFF_SIZE
 #define MALLOC_BUFF_SIZE 0xFFFF //max 0x7FFFFFFF
@@ -73,7 +74,9 @@ void c_free(void *argPtr){
     }
     curr->is_free = 1;
     freeMem += curr->size;
-
+#ifdef MEMFREE_SET_ZERO
+    memset((void *)(curr + 1), 0x00, curr->size);
+#endif
     // laczenie z nastepnym
     if (curr->next && curr->next->is_free) {
         curr->size += BLOCK_SIZE + curr->next->size;
@@ -82,6 +85,9 @@ void c_free(void *argPtr){
             curr->next->prev = curr;
         }
         freeMem += BLOCK_SIZE;
+#ifdef MEMFREE_SET_ZERO
+        memset((void *)(curr + 1), 0x00, curr->size);
+#endif
     }
 
     // laczenie z poprzednim
@@ -92,6 +98,9 @@ void c_free(void *argPtr){
             curr->next->prev = curr->prev;
         }
         freeMem += BLOCK_SIZE;
+#ifdef MEMFREE_SET_ZERO
+        memset((void *)(curr->prev + 1), 0x00, curr->prev->size);
+#endif
     }
 }
 
