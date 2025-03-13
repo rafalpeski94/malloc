@@ -24,6 +24,7 @@ __attribute__((packed)) struct SBlock
 PSBlock start = NULL;
 size_t freeMem = MALLOC_BUFF_SIZE;
 void *c_malloc(size_t argSize) {
+    size_t size = argSize;
     void *ret = NULL;
     if (NULL == start) { //init
         start = (PSBlock)buff;
@@ -37,30 +38,34 @@ void *c_malloc(size_t argSize) {
     // wyszukanie bloku
     PSBlock curr = start;
     while (curr) {
-        if (curr->is_free && curr->size >= argSize) {
+        if (curr->is_free && curr->size >= size) {
             break;
         }
         curr = curr->next;
     }
 
     if (curr) {
-        if (curr->size == argSize) {
+        //jezeli po allokacji pozostala pamiec < BLOCK_SIZE wyrownaj do tej wartosci
+        if(curr->size < size + BLOCK_SIZE){
+            size = curr->size;
+        }
+        if (curr->size == size) {
             curr->is_free = 0;
-            freeMem -= argSize;
+            freeMem -= size;
         } else {
             // wydzielenie bloku
-            PSBlock new_block = (PSBlock)((char *)(curr + 1) + argSize);
-            new_block->size = curr->size - argSize - BLOCK_SIZE;
+            PSBlock new_block = (PSBlock)((char *)(curr + 1) + size);
+            new_block->size = curr->size - size - BLOCK_SIZE;
             new_block->is_free = 1;
             new_block->next = curr->next;
             new_block->prev = curr;
             if (curr->next) {
                 curr->next->prev = new_block;
             }
-            curr->size = argSize;
+            curr->size = size;
             curr->is_free = 0;
             curr->next = new_block;
-            freeMem -= argSize + BLOCK_SIZE;
+            freeMem -= size + BLOCK_SIZE;
         }
         ret = (void *)(curr + 1);
     }

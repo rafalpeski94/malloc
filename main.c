@@ -28,7 +28,7 @@ int main(int i, char** x){
   a = c_malloc(10);
   b = c_malloc(10);
   c_free(a);
-  c = c_malloc(10);
+  c = c_malloc(8);
   d = c_malloc(10);
   c_free(d);
   e = c_malloc(10);
