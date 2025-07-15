@@ -83,9 +83,6 @@ void *c_malloc(size_t argSize) {
             freeMem -= size + BLOCK_SIZE;
         }
         ret = (void *)(curr + 1);
-#ifdef MEMFREE_SET_ZERO
-        memset((void *)(curr + 1), 0x00, curr->size);
-#endif
     }
     return ret;
 }
@@ -124,6 +121,14 @@ void c_free(void *argPtr){
         }
         freeMem += BLOCK_SIZE;
     }
+}
+
+void *c_calloc(size_t argSize){
+    void *ptr = c_malloc(argSize);
+    if (ptr) {
+        memset(ptr, 0, argSize);
+    }
+    return ptr;
 }
 
 float c_free_mem_perc(void){

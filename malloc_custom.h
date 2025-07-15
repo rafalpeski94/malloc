@@ -5,6 +5,7 @@
 
 
 void *c_malloc(size_t argSize);
+void *c_calloc(size_t argSize);
 void c_free(void *argPtr);
 
 //dostepna wolna pamiec w %
